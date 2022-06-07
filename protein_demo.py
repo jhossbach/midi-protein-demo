@@ -232,7 +232,7 @@ class SystemProteinDemo:
             self.system, camera_position=[15, -40, 15]
         )
         self.visualizer.register_callback(self.adapt_new_values, interval=100)
-        self.visualizer.register_callback(self.update_plot, interval=500)
+        self.visualizer.register_callback(self.update_plot, interval=100)
 
     def change_angle(self):
         """Change to new angle of view."""
@@ -245,24 +245,27 @@ class SystemProteinDemo:
     #############################################################
 
     def init_plots(self):
-        plt.ion()
         self.fig = plt.figure()
         (self.plot,) = plt.plot([self.system.time], self.end_to_end_distance)
         plt.ylim(0.0, self.system.box_l[0])
+        plt.xlim(0.0, 100)
+        plt.xlabel("Time")
+        plt.ylabel("End-to-end distance")
         self.fig.canvas.draw()
         plt.show(block=False)
 
     def update_plot(self):
         """Update the plot."""
         self.update_end_to_end_distance()
-        self.fig.clear()
-        plt.ylim(0.0, self.system.box_l[0])
-        plt.plot(
-            np.linspace(0, self.system.time, num=len(self.end_to_end_distance)),
-            self.end_to_end_distance,
+        self.plot.set_xdata(
+            np.linspace(0, self.system.time, num=len(self.end_to_end_distance))
         )
+        self.plot.set_ydata(self.end_to_end_distance)
+        plt.ylim(0.0, self.system.box_l[0])
+        if np.round(self.system.time % 100) < 7:
+            plt.xlim(right=self.system.time + 100)
         plt.draw()
-        plt.pause(0.0001)
+        plt.pause(0.01)
 
     #############################################################
     #      Integration                                          #
@@ -275,14 +278,13 @@ class SystemProteinDemo:
 
     def run(self):
         """Run the simulation."""
-        self.main_thread = threading.Thread(target=self.main_thread, daemon=True)
-        self.midi_thread = threading.Thread(target=self.midi_thread, daemon=True)
-        self.main_thread.start()
-        self.midi_thread.start()
+        self.thread_midi = threading.Thread(target=self.midi_thread, daemon=True)
+        self.thread_main = threading.Thread(target=self.main_thread, daemon=True)
+        self.thread_midi.start()
+        self.thread_main.start()
         self.visualizer.start()
 
 
 if __name__ == "__main__":
     demo = SystemProteinDemo()
     demo.run()
-    midi_instance = MidiControls()
