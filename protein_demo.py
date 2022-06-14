@@ -100,6 +100,8 @@ class SystemProteinDemo:
         self.flag_dict = {Lever.TEMP: False, Lever.ROTATION: False, Lever.WEIGHT: False}
 
         self.end_to_end_distance = []
+        self.temperature = []
+        self.weight = []
 
         self.set_up_system()
         self.set_up_camera()
@@ -156,6 +158,7 @@ class SystemProteinDemo:
         # Get the first value for the end to end distance
         self.end_to_end_distance.append(
             self.system.distance(self.first_particle, self.weight_particle)
+            / self.system.box_l[0]
         )
 
         # Add bonds between particles
@@ -181,11 +184,13 @@ class SystemProteinDemo:
         if self.flag_dict[Lever.WEIGHT]:
             self.weight_particle.ext_force = [0, 0, -self.MIDI_WEIGHT]
 
-    def update_end_to_end_distance(self):
+    def update_observables(self):
         """Update the end-to-end distance for the plots."""
         self.end_to_end_distance.append(
             np.linalg.norm(self.weight_particle.pos - self.first_particle.pos)
         )
+        self.temperature.append(self.MIDI_TEMP)
+        self.weight.append(self.MIDI_WEIGHT)
 
     #############################################################
     #      MIDI Interface                                       #
@@ -232,7 +237,7 @@ class SystemProteinDemo:
             self.system, camera_position=[15, -40, 15]
         )
         self.visualizer.register_callback(self.adapt_new_values, interval=100)
-        self.visualizer.register_callback(self.update_plot, interval=100)
+        self.visualizer.register_callback(self.update_plots, interval=100)
 
     def change_angle(self):
         """Change to new angle of view."""
@@ -246,22 +251,31 @@ class SystemProteinDemo:
 
     def init_plots(self):
         self.fig = plt.figure()
-        (self.plot,) = plt.plot([self.system.time], self.end_to_end_distance)
-        plt.ylim(0.0, self.system.box_l[0])
+        (self.plot_end_to_end_dist,) = plt.plot(
+            [self.system.time], self.end_to_end_distance, label="Laenge"
+        )
+        (self.plot_temperature,) = plt.plot(
+            [self.system.time], self.temperature, label="Temperatur"
+        )
+        (self.plot_weight,) = plt.plot([self.system.time], self.weight, label="Gewicht")
+        plt.ylim(0.0, 1.0)
         plt.xlim(0.0, 100)
+        plt.legend()
         plt.xlabel("Time")
-        plt.ylabel("End-to-end distance")
         self.fig.canvas.draw()
         plt.show(block=False)
 
-    def update_plot(self):
-        """Update the plot."""
-        self.update_end_to_end_distance()
-        self.plot.set_xdata(
-            np.linspace(0, self.system.time, num=len(self.end_to_end_distance))
-        )
-        self.plot.set_ydata(self.end_to_end_distance)
-        plt.ylim(0.0, self.system.box_l[0])
+    def update_plots(self):
+        """Update the plots."""
+        self.update_observables()
+        time_array = np.linspace(0, self.system.time, num=len(self.end_to_end_distance))
+        self.plot_end_to_end_dist.set_xdata(time_array)
+        self.plot_end_to_end_dist.set_ydata(self.end_to_end_distance)
+        self.plot_temperature.set_xdata(time_array)
+        self.plot_temperature.set_ydata(self.temperature)
+        self.plot_weight.set_xdata(time_array)
+        self.plot_weight.set_ydata(self.weight)
+        plt.ylim(0.0, 1.0)
         if np.round(self.system.time % 100) < 7:
             plt.xlim(right=self.system.time + 100)
         plt.draw()
