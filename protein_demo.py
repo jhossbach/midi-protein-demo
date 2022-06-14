@@ -28,10 +28,10 @@ class Lever(IntEnum):
 
 
 class MidiControls:
-    def __init__(self):
+    def __init__(self, init_temp=127, init_weight=127):
         self._get_midi_devices()
         self._connect_to_midi()
-        self._reset_values()
+        self._reset_values(init_temp, init_weight)
 
     def _get_midi_devices(self):
         if not midi.get_init():
@@ -49,9 +49,9 @@ class MidiControls:
                     self.output_midi_device = i
                     break
 
-    def _reset_values(self):
-        self.midi_output.write_short(Lever.TEMP, 127, 127)
-        self.midi_output.write_short(Lever.WEIGHT, 127, 127)
+    def _reset_values(self, init_temp, init_weight):
+        self.midi_output.write_short(Lever.TEMP, init_temp, init_temp)
+        self.midi_output.write_short(Lever.WEIGHT, init_weight, init_weight)
 
     def _connect_to_midi(self):
         self.midi_input = midi.Input(self.input_midi_device)
@@ -79,7 +79,6 @@ class MidiControls:
 class SystemProteinDemo:
     def __init__(self):
         self.num_integrator_steps = 100
-        self.midi = MidiControls()
         self.messagehandler = {
             Lever.TEMP: self._change_midi_temp,
             Lever.ROTATION: self._change_midi_rotation,
@@ -88,20 +87,26 @@ class SystemProteinDemo:
 
         # TODO: Improve values for better visualization effect
         self.TEMP_MIN = 0.001
-        self.TEMP_MAX = 0.01
-        self.MIDI_TEMP = self.TEMP_MAX
+        self.TEMP_MAX = 0.02
+        self.MIDI_TEMP = (self.TEMP_MAX + self.TEMP_MIN) / 2
 
         self.WEIGHT_MIN = 0.009
         self.WEIGHT_MAX = 0.07
-        self.MIDI_WEIGHT = self.WEIGHT_MAX
+        self.MIDI_WEIGHT = (self.WEIGHT_MAX + self.WEIGHT_MIN) / 2
 
         self.MIDI_ROTATION = 0.0
+        self.midi = MidiControls(
+            init_temp=int(self.MIDI_TEMP / (self.TEMP_MAX + self.TEMP_MIN) * 127),
+            init_weight=int(
+                self.MIDI_WEIGHT / (self.WEIGHT_MAX + self.WEIGHT_MIN) * 127
+            ),
+        )
 
         self.flag_dict = {Lever.TEMP: False, Lever.ROTATION: False, Lever.WEIGHT: False}
 
         self.end_to_end_distance = []
-        self.temperature = []
-        self.weight = []
+        self.temperature = [self.MIDI_TEMP]
+        self.weight = [self.MIDI_WEIGHT]
 
         self.set_up_system()
         self.set_up_camera()
@@ -116,7 +121,7 @@ class SystemProteinDemo:
         """
         self.system = espressomd.System(box_l=[35, 35, 35])
 
-        self.system.time_step = 0.003
+        self.system.time_step = 0.002
 
         positions = espressomd.polymer.linear_polymer_positions(
             n_polymers=1, beads_per_chain=25, bond_length=1.0, seed=3610
@@ -162,7 +167,7 @@ class SystemProteinDemo:
         )
 
         # Add bonds between particles
-        fene = espressomd.interactions.FeneBond(k=0.1, d_r_max=0.6, r_0=1.0)
+        fene = espressomd.interactions.HarmonicBond(k=1.0, r_cut=2.0, r_0=1.0)
         self.system.bonded_inter.add(fene)
         previous_part = None
         for part in part_list:
@@ -186,11 +191,17 @@ class SystemProteinDemo:
 
     def update_observables(self):
         """Update the end-to-end distance for the plots."""
+        # Scale to numbers between 0 and 1
         self.end_to_end_distance.append(
             np.linalg.norm(self.weight_particle.pos - self.first_particle.pos)
+            / self.system.box_l[0]
         )
-        self.temperature.append(self.MIDI_TEMP)
-        self.weight.append(self.MIDI_WEIGHT)
+        self.temperature.append(
+            (self.MIDI_TEMP - self.TEMP_MIN) / (self.TEMP_MAX - self.TEMP_MIN)
+        )
+        self.weight.append(
+            (self.MIDI_WEIGHT - self.WEIGHT_MIN) / (self.WEIGHT_MAX - self.WEIGHT_MIN)
+        )
 
     #############################################################
     #      MIDI Interface                                       #
@@ -258,7 +269,7 @@ class SystemProteinDemo:
             [self.system.time], self.temperature, label="Temperatur"
         )
         (self.plot_weight,) = plt.plot([self.system.time], self.weight, label="Gewicht")
-        plt.ylim(0.0, 1.0)
+        plt.ylim(0.0, 1.1)
         plt.xlim(0.0, 100)
         plt.legend()
         plt.xlabel("Time")
@@ -275,7 +286,6 @@ class SystemProteinDemo:
         self.plot_temperature.set_ydata(self.temperature)
         self.plot_weight.set_xdata(time_array)
         self.plot_weight.set_ydata(self.weight)
-        plt.ylim(0.0, 1.0)
         if np.round(self.system.time % 100) < 7:
             plt.xlim(right=self.system.time + 100)
         plt.draw()
