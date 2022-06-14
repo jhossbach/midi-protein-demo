@@ -91,7 +91,7 @@ class SystemProteinDemo:
         self.MIDI_TEMP = (self.TEMP_MAX + self.TEMP_MIN) / 2
 
         self.WEIGHT_MIN = 0.009
-        self.WEIGHT_MAX = 0.07
+        self.WEIGHT_MAX = 0.15
         self.MIDI_WEIGHT = (self.WEIGHT_MAX + self.WEIGHT_MIN) / 2
 
         self.MIDI_ROTATION = 0.0
@@ -122,6 +122,7 @@ class SystemProteinDemo:
         self.system = espressomd.System(box_l=[35, 35, 35])
 
         self.system.time_step = 0.002
+        self.system.cell_system.skin = 0.4
 
         positions = espressomd.polymer.linear_polymer_positions(
             n_polymers=1, beads_per_chain=25, bond_length=1.0, seed=3610
@@ -286,10 +287,10 @@ class SystemProteinDemo:
         self.plot_temperature.set_ydata(self.temperature)
         self.plot_weight.set_xdata(time_array)
         self.plot_weight.set_ydata(self.weight)
-        if np.round(self.system.time % 100) < 7:
-            plt.xlim(right=self.system.time + 100)
+        if np.round(self.system.time % 200) < 7:
+            plt.xlim(right=self.system.time + 200)
         plt.draw()
-        plt.pause(0.01)
+        plt.pause(0.001)
 
     #############################################################
     #      Integration                                          #
