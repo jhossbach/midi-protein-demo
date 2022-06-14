@@ -87,7 +87,7 @@ class SystemProteinDemo:
 
         # TODO: Improve values for better visualization effect
         self.TEMP_MIN = 0.001
-        self.TEMP_MAX = 0.02
+        self.TEMP_MAX = 0.019
         self.MIDI_TEMP = (self.TEMP_MAX + self.TEMP_MIN) / 2
 
         self.WEIGHT_MIN = 0.009
@@ -108,6 +108,9 @@ class SystemProteinDemo:
         self.temperature = [self.MIDI_TEMP]
         self.weight = [self.MIDI_WEIGHT]
 
+        # For plot updates
+        self.count = 0
+
         self.set_up_system()
         self.set_up_camera()
         self.init_plots()
@@ -119,7 +122,7 @@ class SystemProteinDemo:
          in the upper center of the box
         Fix position of the first particle
         """
-        self.system = espressomd.System(box_l=[35, 35, 35])
+        self.system = espressomd.System(box_l=[35, 35, 35], periodicity=3 * [False])
 
         self.system.time_step = 0.002
         self.system.cell_system.skin = 0.4
@@ -271,7 +274,7 @@ class SystemProteinDemo:
         )
         (self.plot_weight,) = plt.plot([self.system.time], self.weight, label="Gewicht")
         plt.ylim(0.0, 1.1)
-        plt.xlim(0.0, 100)
+        plt.xlim(0.0, 200)
         plt.legend()
         plt.xlabel("Time")
         self.fig.canvas.draw()
@@ -287,8 +290,9 @@ class SystemProteinDemo:
         self.plot_temperature.set_ydata(self.temperature)
         self.plot_weight.set_xdata(time_array)
         self.plot_weight.set_ydata(self.weight)
-        if np.round(self.system.time % 200) < 7:
+        if self.count > 200:
             plt.xlim(right=self.system.time + 200)
+            self.count = 0
         plt.draw()
         plt.pause(0.001)
 
@@ -299,6 +303,7 @@ class SystemProteinDemo:
     def main_thread(self):
         while True:
             self.system.integrator.run(self.num_integrator_steps)
+            self.count += self.num_integrator_steps * self.system.time_step
             self.visualizer.update()
 
     def run(self):
